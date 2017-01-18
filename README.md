@@ -1,2 +1,2 @@
 # Amadeus
-this shits bananas
+Harmony generator.
