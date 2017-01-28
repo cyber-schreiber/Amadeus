@@ -10,26 +10,23 @@ class Family:
 
     @type name: str
     @type chords: (Chord, Chord, ...)
-    @type tension: int
-    @type depth: int
+    @type dry: int
     @type weight: int
     """
 
-    def __init__(self, name, chords, tension, depth):
+    def __init__(self, name, chords, dry):
         """Constructs a chord family
 
         @type self: Family
         @type name: str
         @type chords: (Chord, Chord, ...)
-        @type tension: int
-        @type depth: int
+        @type dry: int
         @rtype: None
         """
 
         self.name = name
         self.chords = chords
-        self.tension = tension
-        self.depth = depth
+        self.dry = dry
         self.weight = 0
 
     def determine_weight(self, loop):
@@ -41,22 +38,30 @@ class Family:
         @rtype: None
         """
 
-        self.weight = int(10 - ((self.tension - loop.tension) ** 2 * 2.5))
+        self.weight = int(15 - ((self.dry - loop.tension) ** 2 * 2.5))
 
         # accounting for diatonic chords keeping in play
-        if self.name == 'primary_dominant' or self.name == 'diatonic major' or \
-                self.name == 'diatonic minor':
-            if loop.tension > 2:
+        if loop.key[1] == 'major':
+            if self.name == 'primary_dominant' or self.name == 'diatonic major' or \
+                    self.name == 'diatonic minor':
+                if loop.tension > 2:
+                    self.weight = 2
+            if self.name == 'mi_dominant' or self.name == 'primary_dominant':
+                if loop.tension < 2:
+                    self.weight = 0
+                elif loop.tension > 2:
+                    self.weight = 2
+            if self.name == 'mi_sec_dom':
+                self.weight = 1
+        else:  # loop.key[1] == 'minor'
+            if self.name == 'mi_minor' or self.name == 'mi_major':
                 self.weight = 2
-        elif self.name == 'mi_dominant' or self.name == 'primary_dominant':
-            if loop.tension < 2:
-                self.weight = 0
-            elif loop.tension > 2:
-                self.weight -= 4
+            if self.name == 'diatonic major' or self.name == 'diatonic minor' or self.name == 'ma_sec_dom':
+                self.weight = 1
 
 
 class Loop:
-    """Represents a loop which has one or more keys, a number of measures,
+    """Represents a loop which has a key, a number of measures,
     a tension rating, and a depth rating.
 
     @type key: (str, str)
@@ -64,11 +69,10 @@ class Loop:
     @type measures: int
     @type tension: int
     @type depth: int
-    @type chords: list[int]
+    @type spots: list[Spot]
         the chords belonging to this loop
 
     Representation Invariants:
-    len(keys) >= 1
     int objects in keys add up to measures
     0 <= tension <= 4
     0 <= depth <= 4
@@ -84,55 +88,63 @@ class Loop:
         @rtype: None
         """
 
-        self.key = (notes[random.randint(0, 11)], qualities[0])
-        # qualities[0] means it is major (sufficient for now)
+        self.key = (notes[random.randint(0, 11)], qualities[random.randint(0, 1)])
+        # qualities[0] -> major; quantities[1] -> minor
         self.measures = measures
         self.tension = tension
         self.depth = depth
-        self.chords = []
+
+
+class Frame:
+    """Contains all the rhythmic/timing information of harmony/melody/bass
+    of a Loop
+
+    ===Attributes===
+    @type melody: list[list[int]]
+        len(melody) = number of measures in the loop
+    @type bass: list[list[int]]
+        len(bass) = len(melody)
+    @type harmony: list[list[Chord]]
+        len(harmony) = len(bass) = len(melody)
+    """
+
+    def __init__(self):
+        """Constructs a new frame; this is called when a new loop is creates
+
+        @type self: Frame
+        @rtype: None
+        """
+        self.melody = []
+        self.bass = []
+        self.harmony = []
 
 
 class Chord:
-    """Represents a chord which has a family, level of tension,
-    and level of depth.
+    """Represents a chord
 
-    @type family: str
     @type name: str
     @type quality: str
         either major, minor, or dominant
-    @type tension: int
-        0 is most relaxed, 4 is most tense
-    @type depth: int
-        0 is most shallow, 4 is most deep
     @type quality: str
         the quality of the chord
     @type interval: int
         the distance (in semi-tones) between this chord's root and the tonic
     @type chord_scale: list[int]
         the notes which are available to play over this chord
-
-    0 <= tension <= 4
-    0 <= depth <= 4
     """
 
-    def __init__(self, family, name, quality, tension, depth, interval):
+    def __init__(self, name, quality, interval):
         """Constructs a chord
 
         @type self: Chord
-        @type family: str
         @type name: str
         @type quality: str
-        @type tension: int
-        @type depth: int
         @type interval: int
         @rtype: None
         """
 
-        self.family = family
         self.name = name
         self.quality = quality
-        self.tension = tension
-        self.depth = depth
         self.interval = interval
 
         if quality == 'major':
@@ -143,13 +155,13 @@ class Chord:
             self.chord_scale = [0, 2, 3, 5, 7, 10]
             if name == 'III-':
                 self.chord_scale.remove(2)
-        elif name == 'V7' or name == 'bVII7' or name == 'V7/IV' or \
-                name == 'V7/V':
-            self.chord_scale = [0, 2, 4, 7, 9, 10]
-        elif name == 'V7/II':
-            self.chord_scale = [0, 2, 4, 7, 8, 10]
-        elif name == 'V7/III' or name == 'V7/VI':
-            self.chord_scale = [0, 1, 3, 4, 7, 8, 10]
+        else:  # quality == 'dominant'
+            if name == 'V7/II':
+                self.chord_scale = [0, 2, 4, 7, 8, 10]
+            elif name == 'V7/III' or name == 'V7/VI':
+                self.chord_scale = [0, 1, 3, 4, 7, 8, 10]
+            else:
+                self.chord_scale = [0, 2, 4, 7, 9, 10]
 
         self.weight = 0
 
@@ -157,22 +169,19 @@ class Chord:
 class Voicing:
     """Represents the particular notes of a four-voice chord
 
-    @type quality: str
     @type notes: list[int]
     @type depth: int
     """
 
-    def __init__(self, quality, notes, depth):
+    def __init__(self, notes, depth):
         """Constructs a voicing
 
         @type self: Voicing
-        @type quality: str
         @type notes: list[int]
         @type depth: int
         @rtype: None
         """
 
-        self.quality = quality
         self.notes = notes
         self.depth = depth
 
@@ -185,21 +194,34 @@ def choose_chord(current_loop, measure, previous_chord):
     @type previous_chord: Chord
     @rtype: Chord
     """
+    # first case is for resolving bVII chords and for the first chord in the loop: return Imaj or I-
     if previous_chord is None or measure == 0 or \
             previous_chord.name == 'bVIImaj' or previous_chord.name == 'bVII7':
-        return diatonic_major.chords[0]
+        if current_loop.key[1] == 'major':
+            return diatonic_major.chords[0]
+        else:  # loop.key[1] == 'minor'
+            return mi_minor.chords[0]
 
+    # resolving V7 (this can probably be removed due to redundancy)
     elif previous_chord.name == 'V7':
         return_lst = [I, I, I, I, VImin]
         if current_loop.tension > 2 and measure != current_loop.measures - 1:
             return_lst.extend([V7ofIV, V7ofIV, V7ofIV])
         return random.choice(return_lst)
 
+    # this case is for making the final block chord in the loop V7 if there is a high rating of dryness
     elif current_loop.tension > 2 and measure == current_loop.measures - 1 and \
-            previous_chord.quality != 'dominant':
+            (previous_chord.quality != 'dominant' or previous_chord.name == 'V7/V' or
+             previous_chord.name == 'subV7/V'):
         return V
 
-    elif previous_chord.quality == 'dominant':  # dominant resolution
+    # dominant resolution
+    # case I: V7/bII goes to V or subV7ofI
+    # case II: return either a chord 7 semitones below (equivalent to 5 semitones above), 2 semitones above, or one
+    # semitone below
+    elif previous_chord.quality == 'dominant':
+        if previous_chord.name == 'V7ofbII':
+            return random.choice(V, V, subV7ofI)
         e = True
         while e:
             chord_family = choose_family(current_loop)
@@ -210,13 +232,19 @@ def choose_chord(current_loop, measure, previous_chord):
                         previous_chord.interval - chord_change.interval == -5:
                     e = False
                     return_chords.append(chord_change)
-                    return_chords.append(chord_change)
-                    return_chords.append(chord_change)
+                    if previous_chord.name[:5] != 'subV7':
+                        return_chords.extend([chord_change, chord_change, chord_change])
+
                 if (previous_chord.interval - chord_change.interval == 10 or
-                        previous_chord.interval - chord_change.interval == -2) \
-                        and chord_change.quality == 'minor':
+                        previous_chord.interval - chord_change.interval == -2):
                     return_chords.append(chord_change)
+
+                if previous_chord.interval - chord_change.interval == 1 or \
+                        previous_chord.interval - chord_change.interval == -11:
                     e = False
+                    return_chords.append(chord_change)
+                    if previous_chord.name[:5] == 'subV7':
+                        return_chords.extend([chord_change, chord_change, chord_change])
 
             if len(return_chords) > 0:
                 return_chord = random.choice(return_chords)
@@ -261,29 +289,17 @@ def get_chord(family, previous_chord):
         if interval == 0:
             chord_selection.append(chord)
         elif interval == 1:
-            chord_selection.append(chord)
-            chord_selection.append(chord)
-            chord_selection.append(chord)
-            chord_selection.append(chord)
+            chord_selection.extend([chord, chord, chord, chord])
         elif interval == 2:
-            chord_selection.append(chord)
-            chord_selection.append(chord)
+            chord_selection.extend([chord, chord])
         elif interval == 3:
-            chord_selection.append(chord)
-            chord_selection.append(chord)
-            chord_selection.append(chord)
+            chord_selection.extend([chord, chord, chord])
         elif interval == 4:
-            chord_selection.append(chord)
-            chord_selection.append(chord)
-            chord_selection.append(chord)
+            chord_selection.extend([chord, chord, chord])
         elif interval == 5:
-            chord_selection.append(chord)
-            chord_selection.append(chord)
-            chord_selection.append(chord)
-            chord_selection.append(chord)
+            chord_selection.extend([chord, chord, chord, chord])
         elif interval == 6:
-            chord_selection.append(chord)
-            chord_selection.append(chord)
+            chord_selection.extend([chord, chord])
 
     return random.choice(chord_selection)
 
@@ -331,32 +347,50 @@ def get_chord_name(chord_device, loop):
     else:  # quality == 'minor
         quality = '-'
     name = root + quality
-    while len(name) < 6:
-        name += ' '
+
     return name
 
 
-def get_voicing(chord, loop, prev_voice, measure_counter):
+def get_voicing(chord, loop, prev_voice):
     """Calculates and returns a voicing for a chord based on loop's properties
 
     @type chord: Chord
     @type loop: Loop
     @type prev_voice: str
-    @type measure_counter: int
     @rtype: str 'A B C D'
     """
+    voicing_options = []
     if chord.quality == 'major':
-        voicing_options = voicings[0]
+        num = 0
     elif chord.quality == 'minor':
-        voicing_options = voicings[1]
+        num = 1
     else:  # chord.quality == 'dominant'
-        if chord.name == 'V7/IV' or chord.name == 'V7/V' or \
-                chord.name == 'bVII7' or chord.name == 'V7':
-            voicing_options = voicings[2]
-        elif chord.name == 'V7/II':
-            voicing_options = voicings[3]
-        else:  # chord.name == 'V7/III' or chord.name == 'V7/VI'
-            voicing_options = voicings[4]
+        num = 2
+
+    for voicing in voicings[num]:
+        voicing_options.append(voicing)
+
+    if chord.name == 'Imaj':  # removing #4 from possible voicings
+        del voicing_options[8]
+        del voicing_options[7]
+        del voicing_options[4]
+    elif chord.name == 'III-':  # also removing #4 from possible voicings
+        voicing_options[6].notes[0] = 0
+        del voicing_options[4]
+        del voicing_options[1]
+    elif chord.name == 'V7/II':  # accounting for b13 tension
+        voicing_options[1].notes[1] = 8
+        voicing_options[3].notes[2] = 8
+        voicing_options[4].notes[3] = 8
+        voicing_options[4].notes[2] = 6
+    elif chord.name == 'V7/III' or chord.name == 'V7/VI' or chord.name == 'V7' and loop.key[1] == 'minor':
+        # accounting for b9 and b13 tensions
+        voicing_options[1].notes[1] = 8
+        voicing_options[3].notes[2] = 8
+        voicing_options[3].notes[0] = 1
+        voicing_options[4].notes[3] = 8
+        voicing_options[4].notes[2] = 6
+        voicing_options[4].notes[0] = 1
 
     candidates = []
     for voice in voicing_options:
@@ -377,7 +411,7 @@ def get_voicing(chord, loop, prev_voice, measure_counter):
             new_note -= 12
         str_to_return += notes[new_note] + ' '
 
-    if measure_counter != 0:
+    if prev_voice is not None:
         if loop.depth == 0:
             str_to_return = get_inversion(str_to_return, prev_voice, 2)
         elif loop.depth == 1:
@@ -386,6 +420,11 @@ def get_voicing(chord, loop, prev_voice, measure_counter):
             str_to_return = get_inversion(str_to_return, prev_voice, 4)
         else:  # loop.depth == 4
             str_to_return = get_inversion(str_to_return, prev_voice, 5)
+
+    voices = set_voicings()
+    voicings[0] = voices[0]
+    voicings[1] = voices[1]
+    voicings[2] = voices[2]
 
     return str_to_return
 
@@ -460,99 +499,424 @@ def get_inversion(two_notes, prev_voice, number_of_voices):
     return char3
 
 
-# (family, name, quality, mellow/dry, depth, interval)
+def passing_chords(curr_line, curr_frame, curr_loop):
+    """Decorates the loop with passing chords
 
-I = Chord('diatonic major', 'Imaj', 'major', 0, 0, 0)
-IV = Chord('diatonic major', 'IVmaj', 'major', 0, 0, 5)
+    @type curr_line: list[(Chord)]
+    @type curr_frame: Frame
+    @type curr_loop: Loop
+    @rtype: None
+    """
+    if curr_line[0][0].quality == 'dominant':  # 2-5s
+        if random.randint(0, 1) == 0:
+            interval = curr_line[0][0].interval - 5
+            if interval < 0:
+                interval += 12
+            relative_ii = Chord('relII-', 'minor', interval)
 
-diatonic_major = Family('diatonic major', (I, IV), 0, 0)
+            curr_line[4] = curr_line[0]
+            curr_line[0] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
+                            get_voicing(relative_ii, curr_loop, curr_line[4][3]))
 
-V = Chord('diatonic major', 'V7', 'dominant', 2, 1, 7)
+    elif curr_frame.harmony.index(curr_line) == len(curr_frame.harmony) - 1:  # adding turn-around
+        if random.randint(0, 2) == 0 and curr_loop.tension >= 2:
+            if curr_loop.tension >= 2:
+                add_chord = subV7ofI
+            else:
+                add_chord = bII
+            curr_line[6] = (add_chord, add_chord.name, get_chord_name(add_chord, curr_loop),
+                            get_voicing(add_chord, curr_loop, curr_line[0][3]))
+            if random.randint(0, 1) == 0:
+                curr_line[4] = (IImin, 'II-', get_chord_name(IImin, curr_loop),
+                                get_voicing(IImin, curr_loop, curr_line[0][3]))
 
-primary_dominant = Family('primary_dominant', (V,), 2, 1)
+    elif random.randint(0, 1) == 0:  # adding subV7 or V7 with possible 2-5 to prepare for next chord
 
-IImin = Chord('diatonic minor', 'II-', 'minor', 0, 0, 2)
-IIImin = Chord('diatonic minor', 'III-', 'minor', 0, 0, 4)
-VImin = Chord('diatonic minor', 'VI-', 'minor', 0, 0, 9)
+        next_chord = curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0]
+        curr_chord = None
 
-diatonic_minor = Family('diatonic minor', (IImin, IIImin, VImin), 0, 0)
+        if curr_loop.tension < 2:
+            chord_options = []
+            chord_options.extend(diatonic_major.chords)
+            chord_options.extend(diatonic_minor.chords)
+            chord_options.extend(mi_major.chords)
+            chord_options.extend(mi_minor.chords)
 
-V7ofII = Chord('secondary dominant', 'V7/II', 'dominant', 4, 2, 9)
-V7ofIII = Chord('secondary dominant', 'V7/III', 'dominant', 4, 2, 11)
-V7ofIV = Chord('secondary dominant', 'V7/IV', 'dominant', 4, 2, 0)
-V7ofV = Chord('secondary dominant', 'V7/V', 'dominant', 4, 2, 2)
-V7ofVI = Chord('secondary dominant', 'V7/VI', 'dominant', 4, 2, 4)
+            best_options = []
+            for chord_option in chord_options:
+                best_options.append(chord_option)
+                if 1 <= abs(chord_option.interval - next_chord.interval) <= 2:
+                    best_options.extend([chord_option, chord_option])
 
-sec_dom = Family('sec_dom', (V7ofII, V7ofIII, V7ofIV, V7ofV, V7ofVI), 4, 2)
+            chosen_chord = random.choice(best_options)
 
-bII = Chord('modal interchange major', 'bIImaj', 'major', 1, 3, 1)
-bIII = Chord('modal interchange major', 'bIIImaj', 'major', 1, 3, 3)
-bVI = Chord('modal interchange major', 'bVImaj', 'major', 1, 3, 8)
-bVII = Chord('modal interchange major', 'bVIImaj', 'major', 1, 3, 10)
+            curr_line[random.choice([4, 6])] = (chosen_chord, chosen_chord.name,
+                                                get_chord_name(chosen_chord, curr_loop),
+                                                get_voicing(chosen_chord, curr_loop, curr_line[0][3]))
 
-mi_major = Family('mi_major', (bII, bIII, bVI, bVII), 1, 3)
+            if random.randint(0, 1) == 0:
+                chosen_chord_2 = random.choice(best_options)
+                curr_line[random.choice([4, 6])] = (chosen_chord_2, chosen_chord_2.name,
+                                                    get_chord_name(chosen_chord_2, curr_loop),
+                                                    get_voicing(chosen_chord_2, curr_loop, curr_line[0][3]))
 
-Imin = Chord('modal interchange minor', 'I-', 'minor', 1, 3, 0)
-IVmin = Chord('modal interchange minor', 'IV-', 'minor', 1, 3, 5)
-Vmin = Chord('modal interchange minor', 'V-', 'minor', 1, 3, 7)
+            return
 
-mi_minor = Family('mi_minor', (IVmin, Vmin), 1, 3)
+        for dom in ma_sub_dominant.chords:
+            if dom.interval - 1 == next_chord.interval or dom.interval + 11 == next_chord.interval:
+                curr_line[6] = (dom, dom.name, get_chord_name(dom, curr_loop), get_voicing(dom, curr_loop,
+                                                                                           curr_line[0][3]))
+                curr_chord = dom
+        for dom in mi_sub_dominant.chords:
+            if dom.interval - 1 == next_chord.interval or dom.interval + 11 == next_chord.interval:
+                curr_line[6] = (dom, dom.name, get_chord_name(dom, curr_loop), get_voicing(dom, curr_loop,
+                                                                                           curr_line[0][3]))
+                curr_chord = dom
 
-bVII7 = Chord('modal interchange dominant', 'bVII7', 'dominant', 2, 2, 10)
+        if curr_chord is not None:
+            interval = curr_chord.interval + 1
+            if interval > 11:
+                interval -= 12
+            relative_ii = Chord('relII-', 'minor', interval)
 
-mi_dominant = Family('mi_dominant', (bVII7,), 2, 3)
+            curr_line[4] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
+                            get_voicing(relative_ii, curr_loop, curr_line[0][3]))
+
+        for dom in ma_sec_dom.chords:
+            if dom.interval - 7 == next_chord.interval or dom.interval + 5 == next_chord.interval:
+                curr_line[6] = (dom, dom.name, get_chord_name(dom, curr_loop), get_voicing(dom, curr_loop,
+                                                                                           curr_line[0][3]))
+                curr_chord = dom
+        for dom in mi_sec_dom.chords:
+            if dom.interval - 7 == next_chord.interval or dom.interval + 5 == next_chord.interval:
+                curr_line[6] = (dom, dom.name, get_chord_name(dom, curr_loop), get_voicing(dom, curr_loop,
+                                                                                           curr_line[0][3]))
+                curr_chord = dom
+
+        if curr_chord is not None:
+            interval = chord.interval - 5
+            if interval < 0:
+                interval += 12
+            relative_ii = Chord('relII-', 'minor', interval)
+
+            curr_line[4] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
+                            get_voicing(relative_ii, curr_loop, curr_line[0][3]))
+
+
+# Chord(name, quality, interval)
+
+I = Chord('Imaj', 'major', 0)
+IV = Chord('IVmaj', 'major', 5)
+
+diatonic_major = Family('diatonic major', (I, IV), 0)
+
+V = Chord('V7', 'dominant', 7)
+
+primary_dominant = Family('primary_dominant', (V,), 2)
+
+IImin = Chord('II-', 'minor', 2)
+IIImin = Chord('III-', 'minor', 4)
+VImin = Chord('VI-', 'minor', 9)
+
+diatonic_minor = Family('diatonic minor', (IImin, IIImin, VImin), 0)
+
+V7ofII = Chord('V7/II', 'dominant', 9)
+V7ofIII = Chord('V7/III', 'dominant', 11)
+V7ofIV = Chord('V7/IV', 'dominant', 0)
+V7ofV = Chord('V7/V', 'dominant', 2)
+V7ofVI = Chord('V7/VI', 'dominant', 4)
+
+ma_sec_dom = Family('ma_sec_dom', (V7ofII, V7ofIII, V7ofIV, V7ofV, V7ofVI), 4)
+
+V7ofbVI = Chord('V7/bVI', 'dominant', 3)
+V7ofbII = Chord('V7/bII', 'dominant', 8)
+
+mi_sec_dom = Family('mi_sec_dom', (V7ofbVI, V7ofbII), 4)
+
+bII = Chord('bIImaj', 'major', 1)
+bIII = Chord('bIIImaj', 'major', 3)
+bVI = Chord('bVImaj', 'major', 8)
+bVII = Chord('bVIImaj', 'major', 10)
+
+mi_major = Family('mi_major', (bII, bIII, bVI, bVII), 1)
+
+Imin = Chord('I-', 'minor', 0)
+IVmin = Chord('IV-', 'minor', 5)
+Vmin = Chord('V-', 'minor', 7)
+
+mi_minor = Family('mi_minor', (Imin, IVmin, Vmin), 1)
+
+bVII7 = Chord('bVII7', 'dominant', 10)
+
+mi_dominant = Family('mi_dominant', (bVII7,), 2)
+
+subV7ofI = Chord('subV7/I', 'dominant', 1)
+subV7ofII = Chord('subV7/II', 'dominant', 3)
+subV7ofIV = Chord('subV7/IV', 'dominant', 6)
+subV7ofV = Chord('subV7/V', 'dominant', 8)
+
+ma_sub_dominant = Family('ma_sub_dominant', (subV7ofI, subV7ofII, subV7ofIV, subV7ofV), 4)
+
+subV7ofbIII = Chord('subV7/bIII', 'dominant', 4)
+subV7ofbVI = Chord('subV7/bVI', 'dominant', 9)
+
+mi_sub_dominant = Family('mi_sub_dominant', (subV7ofI, subV7ofII, subV7ofbIII,
+                                             subV7ofIV, subV7ofV, subV7ofbVI), 4)
 
 families = (diatonic_major, primary_dominant, diatonic_minor,
-            sec_dom, mi_major, mi_minor, mi_dominant)
+            ma_sec_dom, mi_sec_dom, mi_major, mi_minor, mi_dominant, ma_sub_dominant,
+            mi_sub_dominant)
 
 notes = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab']
 qualities = ['major', 'minor', 'dominant']
 
-major_voicings = [Voicing('major', [4, 7], 0),
-                  Voicing('major', [2, 4, 7], 1),
-                  Voicing('major', [4, 7, 9], 1),
-                  Voicing('major', [0, 4, 7, 11], 2),
-                  Voicing('major', [4, 6, 7, 11], 3),
-                  Voicing('major', [4, 7, 9, 11], 3),
-                  Voicing('major', [2, 4, 7, 11], 3),
-                  Voicing('major', [4, 6, 7, 9, 11], 4),
-                  Voicing('major', [2, 4, 6, 7, 11], 4),
-                  Voicing('major', [2, 4, 7, 9, 11], 4)]
 
-minor_voicings = [Voicing('minor', [3, 7], 0),
-                  Voicing('minor', [2, 3, 7], 1),
-                  Voicing('minor', [3, 5, 7], 1),
-                  Voicing('minor', [0, 3, 7, 10], 2),
-                  Voicing('minor', [2, 3, 7, 10], 3),
-                  Voicing('minor', [3, 5, 7, 10], 3),
-                  Voicing('minor', [2, 3, 5, 7, 10], 4)]
+def set_voicings():
+    """Resets all voicings
+    @rtype: list[list[Voicing]]
+    """
 
-dom_voicings = [Voicing('dominant natural', [4, 10], 0),
-                Voicing('dominant natural', [4, 7, 10], 1),
-                Voicing('dominant natural', [0, 4, 7, 10], 2),
-                Voicing('dominant natural', [2, 4, 9, 10], 3),
-                Voicing('dominant natural', [2, 4, 7, 9, 10], 4)]
+    major_voicings = [Voicing([4, 7], 0),
+                      Voicing([2, 4, 7], 1),
+                      Voicing([4, 7, 9], 1),
+                      Voicing([0, 4, 7, 11], 2),
+                      Voicing([4, 6, 7, 11], 3),
+                      Voicing([4, 7, 9, 11], 3),
+                      Voicing([2, 4, 7, 11], 3),
+                      Voicing([4, 6, 7, 9, 11], 4),
+                      Voicing([2, 4, 6, 7, 11], 4),
+                      Voicing([2, 4, 7, 9, 11], 4)]
 
-dom_voicings_b13 = [Voicing('dominant b13', [4, 10], 0),
-                    Voicing('dominant b13', [4, 8, 10], 1),
-                    Voicing('dominant b13', [0, 4, 7, 10], 2),
-                    Voicing('dominant b13', [2, 4, 8, 10], 3),
-                    Voicing('dominant b13', [2, 4, 6, 8, 10], 4)]
+    minor_voicings = [Voicing([3, 7], 0),
+                      Voicing([2, 3, 7], 1),
+                      Voicing([3, 5, 7], 1),
+                      Voicing([0, 3, 7, 10], 2),
+                      Voicing([2, 3, 7, 10], 3),
+                      Voicing([3, 5, 7, 10], 3),
+                      Voicing([2, 3, 5, 7, 10], 4)]
 
-dom_voicings_b9_b13 = [Voicing('dominant b9 b13', [4, 10], 0),
-                       Voicing('dominant b9 b13', [4, 8, 10], 1),
-                       Voicing('dominant b9 b13', [0, 4, 7, 10], 2),
-                       Voicing('dominant b9 b13', [1, 4, 8, 10], 3),
-                       Voicing('dominant b9 b13', [1, 4, 6, 8, 10], 4)]
+    dom_voicings = [Voicing([4, 10], 0),
+                    Voicing([4, 7, 10], 1),
+                    Voicing([0, 4, 7, 10], 2),
+                    Voicing([2, 4, 9, 10], 3),
+                    Voicing([2, 4, 7, 9, 10], 4)]
 
-voicings = [major_voicings, minor_voicings, dom_voicings, dom_voicings_b13,
-            dom_voicings_b9_b13]
+    return [major_voicings, minor_voicings, dom_voicings]
+
+
+# returns 8-note melody for a chord
+class Spot:
+    """
+    Represents a placeholder for a note/rest in a four/four measure
+
+    Attributes:
+    @type value: str
+        either A, S, or R, or None
+    @type index: int
+        0 <= index <= 15
+    @type note: int | None
+        int that represents interval above chord
+    """
+
+    def __init__(self, index):
+        """Constructs a spot in a measure
+
+        @type self: Spot
+        @type index: int
+        @rtype: None
+        """
+        self.value = None
+        self.note = None
+        self.index = index
+
+
+def get_melody(harmony, new):
+    """Creates and returns the melody for the chord
+
+    @type harmony: list[tuple]
+    @type new: bool
+    @rtype: list[Spot], list[Spot]
+        first list is the notes, second is the rhythm (for repetition/consistency purposes)
+    """
+
+    if new:
+        rests = assign_rests()
+        rhythm = assign_rhythm(rests)
+    else:
+        rhythm = prev_rhythm
+
+    return_melody = get_notes(rhythm, harmony)
+
+    return return_melody, rhythm
+
+
+def assign_rests():
+    """
+    Assigns rests for a four/four measure for a chord
+
+    @rtype: list[Spot]
+    """
+
+    spots = []
+    for i in range(8):
+        spots.append(Spot(i))
+
+    rest_amount = random.randint(0, 2)
+    rest_count = 0
+
+    while rest_count < rest_amount:
+
+        for spot in spots:
+            if spot.value is None:
+                rating = index_rating(spot, spots, rest_amount)
+                reference = random.randint(1, 100)
+                if reference < rating * 100:
+                    spot.value = 'R'
+                    rest_count += 1
+                    if rest_count == rest_amount:
+                        return spots
+
+    return spots
+
+
+def index_rating(curr, spots, rest_amount):
+    """Returns a rating for the likelihood that a spot will be chosen for a rest
+
+    @type curr: Spot
+    @type spots: list[Spot]
+    @type rest_amount: int
+    @rtype: float
+    """
+
+    rest_indices = []
+    return_val = rest_amount / 8
+
+    for spot in spots:
+        if spot.value is not None:
+            if spot.index != 0 and spot.index != 1:
+                rest_indices.append(spot.index)
+
+    for index in rest_indices:
+        for i in range(1, 4):
+            if (curr.index * i) % index == 0 or (index * i) % curr.index == 0:
+                return_val *= 1.2
+
+        if abs(curr.index - index) == 1:
+            return_val *= 1.2
+
+    return return_val
+
+
+def assign_rhythm(spots):
+    """Assigns rhythm values to the spots which are not rests
+
+    @type spots: list[Spot]
+    @rtype: list[Spot]
+    """
+
+    for spot in spots:
+        if spot.value != 'R':
+            if spots[spots.index(spot)-1].value == 'R':
+                spot.value = 'A'
+            elif spots.index(spot) == 0:
+                spot.value = 'A'
+            elif random.randint(1, 2) == 1:
+                spot.value = 'A'
+            else:
+                spot.value = 'S'
+
+    return spots
+
+
+def get_notes(spots, chords):
+    """Determines notes for each spot in spots
+
+    @type spots: list[Spot]
+    @type chords: list[tuple]
+    @rtype: list[Spot]
+    """
+
+    full_chords = []
+    curr = None
+
+    for chord_change in chords:
+        if len(chord_change) > 0:
+            full_chords.append(chord_change[0])
+            curr = chord_change[0]
+        else:
+            full_chords.append(curr)
+
+    scale_notes = {'guide': [], 'shell': [], 'color': []}
+
+    for spot in spots:
+        choices = ['guide', 'shell', 'color']
+
+        if full_chords[spots.index(spot)].quality == 'major':
+            scale_notes['guide'] = [4, 11]
+            scale_notes['shell'] = [0, 7]
+            scale_notes['color'] = [2, 6, 9]
+            if full_chords[spots.index(spot)].name == 'Imaj':
+                scale_notes['color'].remove(6)
+            if loop.depth >= 2:
+                scale_notes['shell'].remove(0)
+        elif full_chords[spots.index(spot)].quality == 'minor':
+            scale_notes['guide'] = [3, 10]
+            scale_notes['shell'] = [0, 7]
+            scale_notes['color'] = [2, 5, 9]
+            if full_chords[spots.index(spot)].name == 'II-':
+                scale_notes['color'].remove(9)
+        else:  # full_chords[spots.index(spot)].quality == 'dominant'
+            scale_notes['guide'] = [4, 10]
+            scale_notes['shell'] = [0, 7]
+            scale_notes['color'] = [2, 9]
+            if full_chords[spots.index(spot)].name == 'V7/II':
+                scale_notes['color'] = [2, 8]
+            elif full_chords[spots.index(spot)].name == 'V7/III' or full_chords[spots.index(spot)].name == 'V7/VI':
+                scale_notes['color'] = [1, 3, 8]
+
+        if spot.value == 'A':
+            if spot.index % 4 == 0:
+                choices.extend(['guide', 'guide', 'guide'])
+            elif spot.index % 2 == 0:
+                choices.extend(['shell', 'shell', 'shell'])
+            else:
+                choices.extend(['color', 'color', 'color'])
+
+            options = scale_notes[random.choice(choices)]
+
+            if spots.index(spot) == 0:
+                spot.note = random.choice(options)
+            else:
+                delta = 13
+                final = None
+                prev = spots[spots.index(spot) - 1].note
+                count = 2
+                while prev is None:
+                    prev = spots[spots.index(spot) - count].note
+                    count += 1
+                    if count > 4:
+                        spot.note = random.choice(options)
+
+                for option in options:
+                    if abs(option - prev) < delta:
+                        delta = abs(option - prev)
+                        final = option
+
+                options.extend([final, final, final, final])
+                spot.note = random.choice(options)
+
+        elif spot.value == 'S':
+            spot.note = spots[spots.index(spot)-1].note
+
+    return spots
 
 
 if __name__ == "__main__":
+    voicings = set_voicings()
 
     a = True
     while a:
+        # primitive UI
         b = True
         while b:
             measures_input = input("How many measures is your loop? "
@@ -605,25 +969,53 @@ if __name__ == "__main__":
                 d = False
 
         loop = Loop(measures_input, tension_input, depth_input)
+        frame = Frame()
 
-        print()
+        previous = None
+        previous_voice = None
 
+        # determining the fundamental/block chords
         for measure_counter in range(loop.measures):
-            if measure_counter == 0:
-                previous = None
-                previous_voice = None
-
             chord = choose_chord(loop, measure_counter, previous)
             previous = chord
 
-            voice = get_voicing(chord, loop, previous_voice, measure_counter)
+            voice = get_voicing(chord, loop, previous_voice)
             previous_voice = voice
 
-            print(get_chord_name(chord, loop),
-                  chord.name, ' '*(7-len(chord.name)),
-                  voice)
+            frame.harmony.append([(chord, chord.name, get_chord_name(chord, loop), voice), (), (), (), (), (), (), ()])
+
+        # decorating the loop with passing chords
+        for line in frame.harmony:
+            passing_chords(line, frame, loop)
+
+        # adding melody
+        for line in frame.harmony:
+            if frame.harmony.index(line) == loop.measures - 1 or (frame.harmony.index(line) + 1) % 4 == 0 \
+                    or frame.harmony.index(line) == 0 or frame.harmony.index(line) % 4 == 0:
+                new_rhythm = True
+            else:
+                new_rhythm = False
+
+            melody = get_melody(line, new_rhythm)
+            prev_rhythm = melody[1]
+            temp = []
+            for note in melody[0]:
+                temp.append(note.note)
+
+            frame.melody.append(temp)
+
+        # displaying output
+        for line in frame.harmony:
+            line[0] = line[0][1:]
+            line[4] = line[4][1:]
+            line[6] = line[6][1:]
+            print(line)
 
         print()
+
+        for line in frame.melody:
+            print(line)
+
         again = input('again? (y/n) ')
         print()
         if again == 'n':
