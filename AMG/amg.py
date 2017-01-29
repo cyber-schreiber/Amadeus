@@ -87,9 +87,18 @@ class Loop:
         @type depth: int
         @rtype: None
         """
+        onward = False
+        while not onward:
+            if random.randint(0, 1) == 0:  # flat key
+                temp_key = notes_flat[random.randint(0, 11)], 'major'
+                if temp_key[0] != 'Gb':
+                    onward = True
+            else:  # sharp key
+                temp_key = notes_sharp[random.randint(0, 11)], 'minor'
+                if temp_key[0] != 'A#' and temp_key[0] != 'D#':
+                    onward = True
 
-        self.key = (notes[random.randint(0, 11)], qualities[random.randint(0, 1)])
-        # qualities[0] -> major; quantities[1] -> minor
+        self.key = temp_key
         self.measures = measures
         self.tension = tension
         self.depth = depth
@@ -184,6 +193,108 @@ class Voicing:
 
         self.notes = notes
         self.depth = depth
+
+
+def diatonic(curr_chord, curr_loop):
+    """Returns whether the chord is diatonic to the loop
+
+    @type curr_chord: Chord
+    @type curr_loop: Loop
+    @rtype: bool
+    """
+
+    if curr_loop.key[1] == 'major':
+        diatonic_families = [diatonic_major, diatonic_minor, primary_dominant, ma_sec_dom]
+    else:  # curr_loop.key[0] == 'minor'
+        diatonic_families = [mi_major, mi_minor, mi_dominant, mi_sec_dom]
+
+    diatonic_chords = []
+    for temp_family in diatonic_families:
+        for temp_chord in temp_family.chords:
+            diatonic_chords.append(temp_chord)
+
+    if curr_chord in diatonic_chords:
+        return True
+    else:
+        return False
+
+
+def get_enharmonic(curr_note):
+    """Returns an enharmonic spelling of a black key
+
+    @type curr_note: str
+        e.g. 'Ab' or 'C#'
+    @rtype: str
+        e.g. 'G#' or 'Db'
+    """
+    if curr_note == 'Ab':
+        return 'G#'
+    if curr_note == 'Bb':
+        return 'A#'
+    if curr_note == 'Db':
+        return 'C#'
+    if curr_note == 'Eb':
+        return 'D#'
+    if curr_note == 'Gb':
+        return 'F#'
+    if curr_note == 'A#':
+        return 'Bb'
+    if curr_note == 'C#':
+        return 'Db'
+    if curr_note == 'D#':
+        return 'Eb'
+    if curr_note == 'F#':
+        return 'Gb'
+    if curr_note == 'G#':
+        return 'Ab'
+
+
+def key_sharp_or_flat(curr_key):
+    """Takes a key and returns whether it has sharps or flats
+
+    @type curr_key: (str, str)
+        e.g. ('A', 'major')
+    @rtype: str
+        either 's' or 'f'
+    """
+
+    if curr_key[1] == 'major':
+        if curr_key[0] in ['C', 'D', 'E', 'G', 'A', 'B', 'C#', 'D#', 'F#', 'G#', 'A#']:
+            return 's'
+        else:  # curr_key[0] in notes not listed above (including enharmonic spellings)
+            return 'f'
+    else:  # curr_key[1] == 'minor'
+        if curr_key[0] in ['E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#']:
+            return 's'
+        else:  # curr_key[0] in notes not listed above (including enharmonic spellings)
+            return 'f'
+
+
+def chord_sharp_or_flat(curr_chord, curr_loop):
+    """Takes a chord in a loop and returns whether it should be labelled with notes that are sharp or flat
+
+    @type curr_chord: Chord
+    @type curr_loop: Loop
+    @rtype: str
+        either 's' or 'f'
+    """
+
+    # i) determine whether loop.key uses sharps or flats
+    # ii) determine whether chord is diatonic -> if so, return whether loop.key uses sharps or flats. if not ->
+    # iii) if not, determine whether the key of the chord scale is sharp or flat
+
+    if diatonic(curr_chord, curr_loop):
+        return key_sharp_or_flat(curr_loop.key)
+    else:
+        if curr_chord.quality == 'dominant':
+            quality = 'major'
+        else:
+            quality = curr_chord.quality
+        if get_chord_name(curr_chord, curr_loop)[1] == 'b' or get_chord_name(curr_chord, curr_loop)[1] == '#':
+            name = get_chord_name(curr_chord, curr_loop)[:2]
+        else:
+            name = get_chord_name(curr_chord, curr_loop)[0]
+        return key_sharp_or_flat((name, quality))
 
 
 def choose_chord(current_loop, measure, previous_chord):
@@ -322,28 +433,46 @@ def choose_family(loop):
     return choice
 
 
-def get_chord_name(chord_device, loop):
+def get_chord_name(chord_device, curr_loop):
     """Returns the name of the chord chord_device according to its relation
     to the tonic.
 
     Used when printing functional chord symbol and relating it to a key.
 
     @type chord_device: Chord
-    @type loop: Loop
+    @type curr_loop: Loop
     @rtype: str
     """
-    tonic = loop.key[0]
-    interval = notes.index(tonic) + chord_device.interval
-    if interval < 12:
-        root = notes[interval]
-    else:
+    key_sorf = key_sharp_or_flat(curr_loop.key)
+    tonic = curr_loop.key[0]
+    if key_sorf == 's':
+        interval = notes_sharp.index(tonic) + chord_device.interval
+
+    else:  # sharp_or_flat == 'f'
+        interval = notes_flat.index(tonic) + chord_device.interval
+
+    while interval > 11:
         interval -= 12
-        root = notes[interval]
+
+    if diatonic(chord_device, curr_loop):
+        sharp_or_flat = key_sharp_or_flat(curr_loop.key)
+        if sharp_or_flat == 's':
+            chosen_notes = notes_sharp
+        else:  # sharp_or_flat == 'f'
+            chosen_notes = notes_flat
+        root = chosen_notes[interval]
+
+    else:
+        if curr_loop.key[1] == 'major':
+            root = notes_flat[interval]
+        else:
+            root = notes_sharp[interval]
+
     quality = chord_device.quality
     if quality == 'dominant':
         quality = '7'
     elif quality == 'major':
-        quality = 'maj '
+        quality = 'maj'
     else:  # quality == 'minor
         quality = '-'
     name = root + quality
@@ -356,9 +485,11 @@ def get_voicing(chord, loop, prev_voice):
 
     @type chord: Chord
     @type loop: Loop
-    @type prev_voice: str
+    @type prev_voice: str | None
     @rtype: str 'A B C D'
     """
+    voicings = set_voicings()
+
     voicing_options = []
     if chord.quality == 'major':
         num = 0
@@ -366,6 +497,12 @@ def get_voicing(chord, loop, prev_voice):
         num = 1
     else:  # chord.quality == 'dominant'
         num = 2
+
+    sharp_or_flat = chord_sharp_or_flat(chord, loop)
+    if sharp_or_flat == 's':
+        chosen_notes = notes_sharp
+    else:  # sharp_or_flat == 'f'
+        chosen_notes = notes_flat
 
     for voicing in voicings[num]:
         voicing_options.append(voicing)
@@ -401,7 +538,14 @@ def get_voicing(chord, loop, prev_voice):
 
     str_to_return = ''
 
-    root_value = notes.index(loop.key[0]) + chord.interval
+    if loop.key[0] not in chosen_notes:
+        if chosen_notes == notes_sharp:
+            temp_chosen_notes = notes_flat
+        else:
+            temp_chosen_notes = notes_sharp
+    else:
+        temp_chosen_notes = chosen_notes
+    root_value = temp_chosen_notes.index(loop.key[0]) + chord.interval
     if root_value > 11:
         root_value -= 12
 
@@ -409,17 +553,17 @@ def get_voicing(chord, loop, prev_voice):
         new_note = root_value + note
         if new_note > 11:
             new_note -= 12
-        str_to_return += notes[new_note] + ' '
+        str_to_return += chosen_notes[new_note] + ' '
 
     if prev_voice is not None:
         if loop.depth == 0:
-            str_to_return = get_inversion(str_to_return, prev_voice, 2)
+            str_to_return = get_inversion(str_to_return, prev_voice, 2, chord, loop)
         elif loop.depth == 1:
-            str_to_return = get_inversion(str_to_return, prev_voice, 3)
+            str_to_return = get_inversion(str_to_return, prev_voice, 3, chord, loop)
         elif 2 <= loop.depth <= 3:
-            str_to_return = get_inversion(str_to_return, prev_voice, 4)
+            str_to_return = get_inversion(str_to_return, prev_voice, 4, chord, loop)
         else:  # loop.depth == 4
-            str_to_return = get_inversion(str_to_return, prev_voice, 5)
+            str_to_return = get_inversion(str_to_return, prev_voice, 5, chord, loop)
 
     voices = set_voicings()
     voicings[0] = voices[0]
@@ -429,13 +573,15 @@ def get_voicing(chord, loop, prev_voice):
     return str_to_return
 
 
-def get_inversion(two_notes, prev_voice, number_of_voices):
+def get_inversion(two_notes, prev_voice, number_of_voices, curr_chord, curr_loop):
     """Calculates and returns the inversion optional for two-note voice-leading
 
     @type two_notes: str 'A B'
     @type prev_voice: str
     @type number_of_voices: int
         0 <= number_of_voices <= 4
+    @type curr_chord: Chord
+    @type curr_loop: Loop
     @rtype: str 'A B'
     """
     distances = []
@@ -465,11 +611,17 @@ def get_inversion(two_notes, prev_voice, number_of_voices):
                      characters[3:] + characters[:3],
                      characters[4:] + characters[:4]]
 
+    sharp_or_flat = chord_sharp_or_flat(curr_chord, curr_loop)
+    if sharp_or_flat == 's':
+        chosen_notes = notes_sharp
+    else:  # sharp_or_flat == 'f'
+        chosen_notes = notes_flat
+
     # Ensuring there will not be semi-tones at the top of a voice-lead
     if number_of_voices > 3:
         for note_set in note_sets:
-            if abs(notes.index(note_set[2]) - notes.index(note_set[3])) == 1 \
-                    or abs(notes.index(note_set[0]) - notes.index(
+            if abs(chosen_notes.index(note_set[2]) - chosen_notes.index(note_set[3])) == 1 \
+                    or abs(chosen_notes.index(note_set[0]) - chosen_notes.index(
                                 note_set[1])) == 1:
                 distances[note_sets.index(note_set)] += 100
 
@@ -487,7 +639,11 @@ def get_inversion(two_notes, prev_voice, number_of_voices):
         for i in range(number_of_voices):
             first = note_set[i]
             second = prev_characters[i]
-            interval = abs(notes.index(first)-notes.index(second))
+            if first not in chosen_notes:
+                first = get_enharmonic(first)
+            if second not in chosen_notes:
+                second = get_enharmonic(second)
+            interval = abs(chosen_notes.index(first)-chosen_notes.index(second))
             if interval > 6:
                 interval = 12 - interval
             distances[note_sets.index(note_set)] += interval
@@ -657,17 +813,19 @@ subV7ofV = Chord('subV7/V', 'dominant', 8)
 
 ma_sub_dominant = Family('ma_sub_dominant', (subV7ofI, subV7ofII, subV7ofIV, subV7ofV), 4)
 
+subV7ofbII = Chord('subV7/bII', 'dominant', 2)
 subV7ofbIII = Chord('subV7/bIII', 'dominant', 4)
 subV7ofbVI = Chord('subV7/bVI', 'dominant', 9)
 
 mi_sub_dominant = Family('mi_sub_dominant', (subV7ofI, subV7ofII, subV7ofbIII,
-                                             subV7ofIV, subV7ofV, subV7ofbVI), 4)
+                                             subV7ofIV, subV7ofV, subV7ofbVI, subV7ofbII), 4)
 
 families = (diatonic_major, primary_dominant, diatonic_minor,
             ma_sec_dom, mi_sec_dom, mi_major, mi_minor, mi_dominant, ma_sub_dominant,
             mi_sub_dominant)
 
-notes = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab']
+notes_flat = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab']
+notes_sharp = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']
 qualities = ['major', 'minor', 'dominant']
 
 
@@ -865,6 +1023,8 @@ def get_notes(spots, chords):
             scale_notes['color'] = [2, 5, 9]
             if full_chords[spots.index(spot)].name == 'II-':
                 scale_notes['color'].remove(9)
+            if full_chords[spots.index(spot)].name == 'III-':
+                scale_notes['color'].remove(2)
         else:  # full_chords[spots.index(spot)].quality == 'dominant'
             scale_notes['guide'] = [4, 10]
             scale_notes['shell'] = [0, 7]
@@ -911,8 +1071,57 @@ def get_notes(spots, chords):
     return spots
 
 
+def get_note_names(curr_frame, curr_loop):
+    """Takes a frame and returns a list of lists containing the letter names of melody notes
+
+    @type curr_frame: Frame
+    @type curr_loop: Loop
+    @rtype: [[str]]
+    """
+
+    return_notes = []
+    curr_chord = None
+
+    for line in curr_frame.melody:
+
+        new_notes = []
+        count = 0
+        for curr_note in line:
+
+            if len(curr_frame.harmony[curr_frame.melody.index(line)][count]) > 0:
+                curr_chord = curr_frame.harmony[curr_frame.melody.index(line)][count][0]
+                sharp_or_flat = chord_sharp_or_flat(curr_chord, curr_loop)
+                if sharp_or_flat == 's':
+                    chosen_notes = notes_sharp
+                else:  # sharp_or_flat == 'f'
+                    chosen_notes = notes_flat
+
+            if curr_note is None:
+                new_notes.append(999)
+            else:
+                # calcluate interval between curr_note and the tonic of the key
+                interval = curr_note + curr_chord.interval
+
+                if loop.key[0] not in chosen_notes:
+                    if chosen_notes == notes_sharp:
+                        temp_chosen_notes = notes_flat
+                    else:
+                        temp_chosen_notes = notes_sharp
+                else:
+                    temp_chosen_notes = chosen_notes
+
+                tonic = temp_chosen_notes.index(curr_loop.key[0])
+                target = tonic + interval
+                while target > 11:
+                    target -= 12
+                new_notes.append(chosen_notes[target])
+            count += 1
+        return_notes.append(new_notes)
+
+    return return_notes
+
+
 if __name__ == "__main__":
-    voicings = set_voicings()
 
     a = True
     while a:
@@ -1004,16 +1213,19 @@ if __name__ == "__main__":
 
             frame.melody.append(temp)
 
-        # displaying output
+        # displaying harmony output
         for line in frame.harmony:
-            line[0] = line[0][1:]
-            line[4] = line[4][1:]
-            line[6] = line[6][1:]
             print(line)
 
         print()
 
+        # displaying melody output
         for line in frame.melody:
+            print(line)
+
+        melody_notes = get_note_names(frame, loop)
+
+        for line in melody_notes:
             print(line)
 
         again = input('again? (y/n) ')
