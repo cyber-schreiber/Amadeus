@@ -115,6 +115,8 @@ class Frame:
         len(bass) = len(melody)
     @type harmony: list[list[Chord]]
         len(harmony) = len(bass) = len(melody)
+    @type harmony_2: list[list[Note]]
+        len(harmony_2) != len(harmony)
     """
 
     def __init__(self):
@@ -126,6 +128,7 @@ class Frame:
         self.melody = []
         self.bass = []
         self.harmony = []
+        self.harmony_2 = []
 
 
 class Chord:
@@ -193,6 +196,29 @@ class Voicing:
 
         self.notes = notes
         self.depth = depth
+
+
+class Note:
+    """Represents a note, used only for output
+
+    === Attributes ===
+    @type value: str
+        e.g. 'A', 'Bb'
+    @type length: int
+        number of eighth notes the note is held for
+    """
+
+    def __init__(self, value, length):
+        """Constructs a note.
+
+        @type self: Note
+        @type value: str
+        @type length: int
+        @rtype: None
+        """
+
+        self.value = value
+        self.length = length
 
 
 def diatonic(curr_chord, curr_loop):
@@ -1121,6 +1147,40 @@ def get_note_names(curr_frame, curr_loop):
     return return_notes
 
 
+def harmony_note_objects(curr_frame):
+    """Takes a frame with complete harmony attribute and returns harmony_2 in Object form
+
+    @type curr_frame: Frame
+    @rtype: list[list[Note]]
+    """
+
+    i = -1
+
+    for measure in curr_frame.harmony:
+        curr_frame.harmony_2.append([])
+        i += 1
+        count = 0
+
+        for item in reversed(measure):
+            count += 1
+
+            if len(item) > 0:
+                note_objects = []
+                temp_str = ''
+
+                for option in item[3]:
+                    if option != ' ':
+                        temp_str += option
+                    else:
+                        note_objects.append(Note(temp_str, count))
+                        temp_str = ''
+
+                count = 0
+                curr_frame.harmony_2[i].insert(0, note_objects)
+
+    return curr_frame.harmony_2
+
+
 if __name__ == "__main__":
 
     a = True
@@ -1214,8 +1274,11 @@ if __name__ == "__main__":
             frame.melody.append(temp)
 
         # displaying harmony output
-        for line in frame.harmony:
-            print(line)
+        for line in harmony_note_objects(frame):
+            for notes in line:
+                print(notes)
+                for note in notes:
+                    print(note.value, note.length)
 
         print()
 
