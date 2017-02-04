@@ -111,6 +111,7 @@ class Frame:
     ===Attributes===
     @type melody: list[list[int]]
         len(melody) = number of measures in the loop
+    @type melody_2: list[Note]
     @type bass: list[list[int]]
         len(bass) = len(melody)
     @type harmony: list[list[Chord]]
@@ -126,6 +127,7 @@ class Frame:
         @rtype: None
         """
         self.melody = []
+        self.melody_2 = []
         self.bass = []
         self.harmony = []
         self.harmony_2 = []
@@ -1123,7 +1125,7 @@ def get_note_names(curr_frame, curr_loop):
                     chosen_notes = notes_flat
 
             if curr_note is None:
-                new_notes.append(999)
+                new_notes.append('r')
             else:
                 # calcluate interval between curr_note and the tonic of the key
                 interval = curr_note + curr_chord.interval
@@ -1179,6 +1181,42 @@ def harmony_note_objects(curr_frame):
                 curr_frame.harmony_2[i].insert(0, note_objects)
 
     return curr_frame.harmony_2
+
+
+def single_note_objects(curr_frame, curr_melody):
+    """Takes a frame and returns melody formatted with Note objects
+
+    @type curr_frame: Frame
+    @type curr_melody: list[list[str]]
+        contains the notes in form 'Bb', 'C', etc.
+    @rtype: list[list[Note]]
+        Notes objects specify length of each note
+    """
+
+    pre_formatted = []
+    post_formatted = []
+
+    for measure in curr_melody:
+        pre_formatted.extend(measure)
+
+    count = 0
+    length = 0
+
+    for key in pre_formatted:
+        length += 1
+        count += 1
+        if count == len(pre_formatted):
+            obj = None
+        else:
+            obj = pre_formatted[count]
+
+        if key != obj:
+            post_formatted.append(Note(key, length))
+            length = 0
+
+    curr_frame.melody_2 = post_formatted
+
+    return curr_frame.melody_2
 
 
 if __name__ == "__main__":
@@ -1277,19 +1315,16 @@ if __name__ == "__main__":
         for line in harmony_note_objects(frame):
             for notes in line:
                 print(notes)
-                for note in notes:
-                    print(note.value, note.length)
 
         print()
 
         # displaying melody output
-        for line in frame.melody:
-            print(line)
-
         melody_notes = get_note_names(frame, loop)
 
-        for line in melody_notes:
-            print(line)
+        new_melody_notes = single_note_objects(frame, melody_notes)
+
+        for note in new_melody_notes:
+            print(note)
 
         again = input('again? (y/n) ')
         print()
