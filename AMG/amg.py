@@ -1097,7 +1097,7 @@ def get_note_names(curr_frame, curr_loop):
                     chosen_notes = notes_flat
 
             if curr_note is None:
-                new_notes.append(999)
+                new_notes.append('Rest')
             else:
                 # calcluate interval between curr_note and the tonic of the key
                 interval = curr_note + curr_chord.interval

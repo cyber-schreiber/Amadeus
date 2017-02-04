@@ -1,0 +1,5 @@
+import mido
+
+def generate_track(melodyarray, root) {
+	
+}
