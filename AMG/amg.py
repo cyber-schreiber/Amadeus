@@ -3,6 +3,13 @@ This contains code for the Automatic Music Generator
 """
 
 import random
+import mido
+import pygame
+from midi_generation import generate_track, combine_tracks
+from playnotes import play_music
+from io import BytesIO
+import os
+import time
 
 
 class Family:
@@ -224,6 +231,8 @@ class Note:
 
         self.value = value
         self.length = length
+    def __str__(self):
+        return "note: %s, duration: %i" % (self.value, self.length)
 
 
 def diatonic(curr_chord, curr_loop):
@@ -1199,7 +1208,8 @@ def get_note_names(curr_frame, curr_loop, bass):
                     chosen_notes = notes_flat
 
             if curr_note is None:
-                new_notes.append('r')
+                new_notes.append('Rest')
+
             else:
                 # calcluate interval between curr_note and the tonic of the key
                 interval = curr_note + curr_chord.interval
@@ -1380,10 +1390,38 @@ if __name__ == "__main__":
             melody = get_melody(line, new_rhythm, False, frame)
             prev_rhythm = melody[1]
             temp = []
-            for note in melody[0]:
+            for note in melody[0]: 
                 temp.append(note.note)
 
             frame.melody.append(temp)
+
+
+        tracks = []
+
+        #displaying harmony output
+
+        # for line in harmony_note_objects(frame):
+        #     for notes in line:
+        #         for note in notes:
+        #             print(note)
+        #         print()
+
+        # harmony_notes = harmony_note_objects(frame)
+        # for harmony_notes = 
+
+        flattened = [val for line in harmony_note_objects(frame) for val in line]
+        for note in flattened:
+            for nott in note:
+                print(nott)
+        ordered = []
+        for i in range(0, len(flattened[0])):
+            line_seq = []
+            for line in flattened:
+                print(i)
+                line_seq.append(line[i])
+            for note in line_seq:
+                print(note)
+            ordered.append(line_seq)
 
         # adding a bassline
         for line in frame.harmony:
@@ -1403,6 +1441,7 @@ if __name__ == "__main__":
         for line in new_bass_notes:
             print(line)
 
+
         print()
 
         # displaying harmony output
@@ -1411,31 +1450,63 @@ if __name__ == "__main__":
                 print(notes)
 
         print()
-
+ 
         # displaying melody output
         melody_notes = get_note_names(frame, loop, False)
-
-        new_melody_notes = single_note_objects(frame, melody_notes)
-
-        for note in new_melody_notes:
+        melo_note_o = single_note_objects(frame, melody_notes)
+        for note in melo_note_o:
             print(note)
+        
+        #simple drum pattern
+        drums = []
+        kicknote = Note('C',1)
+        hhnote = Note('Gb',1)
+        snarenote = Note('E',1)
+        drums = [kicknote, hhnote, snarenote, hhnote]
+        for i in range(0,2):
+            drums.extend(drums)
 
+        #chosing instruments
+        chords_program = random.randint(41, 44)
+        melo_program = random.randint(81, 96)
+        bass_program = random.randint(33, 40)
+
+        #creating track
+        tracks.append(generate_track(drums, 9, octave=-2))
+        tracks.append(generate_track(melo_note_o, 10, program = melo_program, velocity = 64))
+        tracks.append(generate_track(new_bass_notes, 11, octave= -3, program = bass_program, velocity = 64))
+        for i, notes in enumerate(ordered):
+            for note in notes:
+                print(note)
+            print()
+            if i == 0:
+                tracks.append(generate_track(notes, i, octave = 0, program = chords_program, velocity = 45))
+            else:
+                tracks.append(generate_track(notes, i, octave = -1, program = chords_program, velocity = 45))            
+
+        melody_notes = get_note_names(frame, loop, False)
+
+        #combining and playing music
+        print("combining")
+        melody_midi = combine_tracks(tracks)
+        pygame.init()
+        melody_midi.save("melo.mid")
+        pygame.mixer.music.load("melo.mid")
+
+        pygame.mixer.music.play()
+        again = input('play again? (y/n) ')
         print()
+        if again == 'y':
+            pygame.mixer.music.play()
 
-        for line in frame.harmony:
-            print(line)
-
+        again = input('save midi? (y/n) ')
         print()
-
-        for melody_note in frame.melody:
-            print(melody_note)
-
-        print()
-
-        for melody_note in melody_notes:
-            print(melody_note)
+        
+        if again == 'y':
+            filename = input('what name you want to give to this dope ass beat: \n')
+            os.rename("melo.mid", filename)
 
         again = input('again? (y/n) ')
-        print()
+
         if again == 'n':
             a = False
