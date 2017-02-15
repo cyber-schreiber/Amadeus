@@ -119,12 +119,12 @@ class Frame:
     @type melody: list[list[int]]
         len(melody) = number of measures in the loop
     @type melody_2: list[Note]
-    @type bass: list[list[int]]
-        len(bass) = len(melody)
     @type harmony: list[list[Chord]]
         len(harmony) = len(bass) = len(melody)
     @type harmony_2: list[list[Note]]
         len(harmony_2) != len(harmony)
+    @type bass: list[list[int]]
+    @type bass_2: list[list[Note]]
     """
 
     def __init__(self):
@@ -135,9 +135,10 @@ class Frame:
         """
         self.melody = []
         self.melody_2 = []
-        self.bass = []
         self.harmony = []
         self.harmony_2 = []
+        self.bass = []
+        self.bass_2 = []
 
 
 class Chord:
@@ -176,6 +177,8 @@ class Chord:
             self.chord_scale = [0, 2, 3, 5, 7, 10]
             if name == 'III-':
                 self.chord_scale.remove(2)
+            if name[-6:] == 'II-7b5':
+                self.chord_scale = [0, 3, 5, 6, 8, 10]
         else:  # quality == 'dominant'
             if name == 'V7/II':
                 self.chord_scale = [0, 2, 4, 7, 8, 10]
@@ -512,6 +515,10 @@ def get_chord_name(chord_device, curr_loop):
         quality = 'maj'
     else:  # quality == 'minor
         quality = '-'
+
+    if chord_device.name == 'relII-7b5' or chord_device.name == 'II-7b5':
+        quality += '7b5'
+
     name = root + quality
 
     return name
@@ -565,6 +572,14 @@ def get_voicing(chord, loop, prev_voice):
         voicing_options[4].notes[3] = 8
         voicing_options[4].notes[2] = 6
         voicing_options[4].notes[0] = 1
+    elif chord.name == 'relII-7b5' or chord.name == 'II-7b5':  # turning 5 into b5, and 13 into b13
+        voicing_options[0].notes[1] = 6
+        voicing_options[1] = Voicing([3, 6, 8], 1)
+        voicing_options[2].notes[2] = 6
+        voicing_options[3].notes[2] = 6
+        voicing_options[4] = Voicing([3, 6, 8, 10], 3)
+        voicing_options[5].notes[2] = 6
+        voicing_options[6] = Voicing([3, 5, 6, 8, 10], 4)
 
     candidates = []
     for voice in voicing_options:
@@ -700,18 +715,8 @@ def passing_chords(curr_line, curr_frame, curr_loop):
     @type curr_loop: Loop
     @rtype: None
     """
-    if curr_line[0][0].quality == 'dominant':  # 2-5s
-        if random.randint(0, 1) == 0:
-            interval = curr_line[0][0].interval - 5
-            if interval < 0:
-                interval += 12
-            relative_ii = Chord('relII-', 'minor', interval)
 
-            curr_line[4] = curr_line[0]
-            curr_line[0] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
-                            get_voicing(relative_ii, curr_loop, curr_line[4][3]))
-
-    elif curr_frame.harmony.index(curr_line) == len(curr_frame.harmony) - 1:  # adding turn-around
+    if curr_frame.harmony.index(curr_line) >= len(curr_frame.harmony) - 1:  # adding turn-around
         if random.randint(0, 2) == 0 and curr_loop.tension >= 2:
             if curr_loop.tension >= 2:
                 add_chord = subV7ofI
@@ -720,10 +725,40 @@ def passing_chords(curr_line, curr_frame, curr_loop):
             curr_line[6] = (add_chord, add_chord.name, get_chord_name(add_chord, curr_loop),
                             get_voicing(add_chord, curr_loop, curr_line[0][3]))
             if random.randint(0, 1) == 0:
-                curr_line[4] = (IImin, 'II-', get_chord_name(IImin, curr_loop),
-                                get_voicing(IImin, curr_loop, curr_line[0][3]))
+                if loop.key[1] == 'major':
+                    curr_line[4] = (IImin, 'II-', get_chord_name(IImin, curr_loop),
+                                    get_voicing(IImin, curr_loop, curr_line[0][3]))
+                else:  # loop.key[1] == 'minor'
+                    ii = Chord('II-7b5', 'minor', 2)
+                    curr_line[4] = (ii, 'II-7b5', get_chord_name(ii, curr_loop),
+                                    get_voicing(ii, curr_loop, curr_line[0][3]))
 
-    elif random.randint(0, 1) == 0:  # adding subV7 or V7 with possible 2-5 to prepare for next chord
+    elif curr_line[0][0].quality == 'dominant':  # 2-5s
+        if random.randint(0, 1) == 0:
+            if curr_line[0][0] not in ma_sub_dominant.chords + mi_sub_dominant.chords:
+                interval = curr_line[0][0].interval - 5
+                if interval < 0:
+                    interval += 12
+            else:
+                interval = curr_line[0][0].interval + 1
+                if interval > 11:
+                    interval -= 12
+
+            curr_line[4] = curr_line[0]
+
+            if curr_frame.harmony[curr_frame.harmony.index(curr_line)+1][0][0].quality == 'major' or \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'dominant':
+                relative_ii = Chord('relII-', 'minor', interval)
+                curr_line[0] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
+                                get_voicing(relative_ii, curr_loop, curr_line[4][3]))
+            elif curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'minor' or \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'dominant':
+                relative_ii = Chord('relII-7b5', 'minor', interval)
+                curr_line[0] = (relative_ii, 'relII-7b5', get_chord_name(relative_ii, curr_loop),
+                                get_voicing(relative_ii, curr_loop, curr_line[4][3]))
+
+    elif random.randint(0, 1) == 0:
+        # adding subV7 or V7 with possible 2-5 to prepare for next chord
 
         next_chord = curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0]
         curr_chord = None
@@ -770,10 +805,21 @@ def passing_chords(curr_line, curr_frame, curr_loop):
             interval = curr_chord.interval + 1
             if interval > 11:
                 interval -= 12
-            relative_ii = Chord('relII-', 'minor', interval)
 
-            curr_line[4] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
-                            get_voicing(relative_ii, curr_loop, curr_line[0][3]))
+            if random.randint(0, 2) == 0 and \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'major' or \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'dominant':
+                relative_ii = Chord('relII-', 'minor', interval)
+                curr_line[4] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
+                                get_voicing(relative_ii, curr_loop, curr_line[0][3]))
+            elif random.randint(0, 2) == 0 and \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'minor' or \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'dominant':
+                relative_ii = Chord('relII-7b5', 'minor', interval)
+                curr_line[4] = (relative_ii, 'relII-7b5', get_chord_name(relative_ii, curr_loop),
+                                get_voicing(relative_ii, curr_loop, curr_line[0][3]))
+
+            return
 
         for dom in ma_sec_dom.chords:
             if dom.interval - 7 == next_chord.interval or dom.interval + 5 == next_chord.interval:
@@ -790,10 +836,19 @@ def passing_chords(curr_line, curr_frame, curr_loop):
             interval = chord.interval - 5
             if interval < 0:
                 interval += 12
-            relative_ii = Chord('relII-', 'minor', interval)
 
-            curr_line[4] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
-                            get_voicing(relative_ii, curr_loop, curr_line[0][3]))
+            if random.randint(0, 2) == 0 and \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'major' or \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'dominant':
+                relative_ii = Chord('relII-', 'minor', interval)
+                curr_line[4] = (relative_ii, 'relII-', get_chord_name(relative_ii, curr_loop),
+                                get_voicing(relative_ii, curr_loop, curr_line[0][3]))
+            elif random.randint(0, 2) == 0 and \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'minor' or \
+                    curr_frame.harmony[curr_frame.harmony.index(curr_line) + 1][0][0].quality == 'dominant':
+                relative_ii = Chord('relII-7b5', 'minor', interval)
+                curr_line[4] = (relative_ii, 'relII-7b5', get_chord_name(relative_ii, curr_loop),
+                                get_voicing(relative_ii, curr_loop, curr_line[0][3]))
 
 
 # Chord(name, quality, interval)
@@ -908,9 +963,9 @@ class Spot:
     @type value: str
         either A, S, or R, or None
     @type index: int
-        0 <= index <= 15
+        0 <= index <= 7
     @type note: int | None
-        int that represents interval above chord
+        int that represents interval above chord's root
     """
 
     def __init__(self, index):
@@ -925,30 +980,38 @@ class Spot:
         self.index = index
 
 
-def get_melody(harmony, new):
-    """Creates and returns the melody for the chord
+def get_melody(harmony, new, bass, curr_frame):
+    """Creates and returns the melody for one measure of the loop
 
     @type harmony: list[tuple]
     @type new: bool
+    @type bass: bool
+        True if returning bassline, False if returning melody
+    @type curr_frame: Frame
     @rtype: list[Spot], list[Spot]
         first list is the notes, second is the rhythm (for repetition/consistency purposes)
     """
 
     if new:
-        rests = assign_rests()
-        rhythm = assign_rhythm(rests)
+        rests = assign_rests(bass)
+        rhythm = assign_rhythm(rests, bass, harmony)
     else:
         rhythm = prev_rhythm
 
-    return_melody = get_notes(rhythm, harmony)
+    if bass:
+        rhythm = assign_rhythm(assign_rests(bass), bass, harmony)
+
+    return_melody = get_notes(rhythm, harmony, bass, harmony, curr_frame)
 
     return return_melody, rhythm
 
 
-def assign_rests():
+def assign_rests(bass):
     """
     Assigns rests for a four/four measure for a chord
 
+    @type bass: bool
+        True if returning bassline, False if returning melody
     @rtype: list[Spot]
     """
 
@@ -956,16 +1019,17 @@ def assign_rests():
     for i in range(8):
         spots.append(Spot(i))
 
-    rest_amount = random.randint(0, 2)
+    if not bass:
+        rest_amount = random.randint(0, 2)
+    else:
+        rest_amount = 0
     rest_count = 0
 
     while rest_count < rest_amount:
 
         for spot in spots:
             if spot.value is None:
-                rating = index_rating(spot, spots, rest_amount)
-                reference = random.randint(1, 100)
-                if reference < rating * 100:
+                if random.randint(0, 10) == 0:
                     spot.value = 'R'
                     rest_count += 1
                     if rest_count == rest_amount:
@@ -974,60 +1038,53 @@ def assign_rests():
     return spots
 
 
-def index_rating(curr, spots, rest_amount):
-    """Returns a rating for the likelihood that a spot will be chosen for a rest
-
-    @type curr: Spot
-    @type spots: list[Spot]
-    @type rest_amount: int
-    @rtype: float
-    """
-
-    rest_indices = []
-    return_val = rest_amount / 8
-
-    for spot in spots:
-        if spot.value is not None:
-            if spot.index != 0 and spot.index != 1:
-                rest_indices.append(spot.index)
-
-    for index in rest_indices:
-        for i in range(1, 4):
-            if (curr.index * i) % index == 0 or (index * i) % curr.index == 0:
-                return_val *= 1.2
-
-        if abs(curr.index - index) == 1:
-            return_val *= 1.2
-
-    return return_val
-
-
-def assign_rhythm(spots):
+def assign_rhythm(spots, bass, harmony):
     """Assigns rhythm values to the spots which are not rests
-
+        True if returning bassline, False if returning melody
     @type spots: list[Spot]
+    @type bass: bool
+    @type harmony: list[tuple]
     @rtype: list[Spot]
     """
 
-    for spot in spots:
-        if spot.value != 'R':
-            if spots[spots.index(spot)-1].value == 'R':
+    if not bass:
+        for spot in spots:
+            if spot.value != 'R':
+                if spots[spots.index(spot)-1].value == 'R':
+                    spot.value = 'A'
+                elif spots.index(spot) == 0:
+                    spot.value = 'A'
+                elif random.randint(0, 1) == 0:
+                    spot.value = 'A'
+                else:
+                    spot.value = 'S'
+
+    else:
+        for spot in spots:
+            if spot.index == 0:
                 spot.value = 'A'
-            elif spots.index(spot) == 0:
+            elif len(harmony[spots.index(spot)]) > 0:
                 spot.value = 'A'
-            elif random.randint(1, 2) == 1:
-                spot.value = 'A'
+            elif spot.index % 2 == 0:
+                if random.randint(0, 1) == 0:
+                    spot.value = 'A'
+                else:
+                    spot.value = 'S'
             else:
                 spot.value = 'S'
 
     return spots
 
 
-def get_notes(spots, chords):
+def get_notes(spots, chords, bass, harmony, curr_frame):
     """Determines notes for each spot in spots
 
     @type spots: list[Spot]
     @type chords: list[tuple]
+    @type bass: bool
+        True if returning bassline, False if returning melody
+    @type harmony: list[tuple]
+    @type curr_frame: Frame
     @rtype: list[Spot]
     """
 
@@ -1058,49 +1115,60 @@ def get_notes(spots, chords):
             scale_notes['guide'] = [3, 10]
             scale_notes['shell'] = [0, 7]
             scale_notes['color'] = [2, 5, 9]
-            if full_chords[spots.index(spot)].name == 'II-':
+            if full_chords[spots.index(spot)].name in ['II-', 'relII-', 'V-', 'I-']:
                 scale_notes['color'].remove(9)
             if full_chords[spots.index(spot)].name == 'III-':
                 scale_notes['color'].remove(2)
+            if full_chords[spots.index(spot)].name == 'relII-7b5':
+                scale_notes['shell'][1] = 6
+                scale_notes['color'] = [5, 8]
         else:  # full_chords[spots.index(spot)].quality == 'dominant'
             scale_notes['guide'] = [4, 10]
             scale_notes['shell'] = [0, 7]
             scale_notes['color'] = [2, 9]
             if full_chords[spots.index(spot)].name == 'V7/II':
                 scale_notes['color'] = [2, 8]
-            elif full_chords[spots.index(spot)].name == 'V7/III' or full_chords[spots.index(spot)].name == 'V7/VI':
+            elif full_chords[spots.index(spot)].name in ['V7/III', 'V7/VI'] or \
+                    full_chords[spots.index(spot)].name == 'V7' and loop.key[1] == 'minor':
                 scale_notes['color'] = [1, 3, 8]
 
         if spot.value == 'A':
+            options = scale_notes['guide'] + scale_notes['shell'] + scale_notes['color']
+
             if spot.index % 4 == 0:
-                choices.extend(['guide', 'guide', 'guide'])
+                for _ in range(3):
+                    options.extend(scale_notes['guide'])
             elif spot.index % 2 == 0:
-                choices.extend(['shell', 'shell', 'shell'])
+                for _ in range(3):
+                    options.extend(scale_notes['shell'])
             else:
-                choices.extend(['color', 'color', 'color'])
+                for _ in range(3):
+                    options.extend(scale_notes['color'])
 
-            options = scale_notes[random.choice(choices)]
-
-            if spots.index(spot) == 0:
-                spot.note = random.choice(options)
+            if bass and len(harmony[spot.index]) > 0:
+                spot.note = 0
             else:
-                delta = 13
-                final = None
                 prev = spots[spots.index(spot) - 1].note
-                count = 2
+                count = 1
+                onward = True
                 while prev is None:
                     prev = spots[spots.index(spot) - count].note
                     count += 1
                     if count > 4:
                         spot.note = random.choice(options)
+                        onward = False
 
-                for option in options:
-                    if abs(option - prev) < delta:
-                        delta = abs(option - prev)
-                        final = option
+                if onward:
+                    curr_chord_scale = scale_notes['guide'] + scale_notes['shell'] + scale_notes['color']
 
-                options.extend([final, final, final, final])
-                spot.note = random.choice(options)
+                    for chord_note in curr_chord_scale:
+                        delta = abs(prev - chord_note)
+                        if delta > 6:
+                            delta = 12 - delta
+                        for _ in range(4-delta):
+                            options.append(chord_note)
+
+                    spot.note = random.choice(options)
 
         elif spot.value == 'S':
             spot.note = spots[spots.index(spot)-1].note
@@ -1108,25 +1176,31 @@ def get_notes(spots, chords):
     return spots
 
 
-def get_note_names(curr_frame, curr_loop):
+def get_note_names(curr_frame, curr_loop, bass):
     """Takes a frame and returns a list of lists containing the letter names of melody notes
 
     @type curr_frame: Frame
     @type curr_loop: Loop
+    @type bass: bool
     @rtype: [[str]]
     """
 
     return_notes = []
     curr_chord = None
 
-    for line in curr_frame.melody:
+    if not bass:
+        note_values = curr_frame.melody
+    else:
+        note_values = curr_frame.bass
+
+    for line in note_values:
 
         new_notes = []
         count = 0
         for curr_note in line:
 
-            if len(curr_frame.harmony[curr_frame.melody.index(line)][count]) > 0:
-                curr_chord = curr_frame.harmony[curr_frame.melody.index(line)][count][0]
+            if len(curr_frame.harmony[note_values.index(line)][count]) > 0:
+                curr_chord = curr_frame.harmony[note_values.index(line)][count][0]
                 sharp_or_flat = chord_sharp_or_flat(curr_chord, curr_loop)
                 if sharp_or_flat == 's':
                     chosen_notes = notes_sharp
@@ -1313,13 +1387,14 @@ if __name__ == "__main__":
             else:
                 new_rhythm = False
 
-            melody = get_melody(line, new_rhythm)
+            melody = get_melody(line, new_rhythm, False, frame)
             prev_rhythm = melody[1]
             temp = []
             for note in melody[0]: 
                 temp.append(note.note)
 
             frame.melody.append(temp)
+
 
         tracks = []
 
@@ -1347,14 +1422,42 @@ if __name__ == "__main__":
             for note in line_seq:
                 print(note)
             ordered.append(line_seq)
+
+        # adding a bassline
+        for line in frame.harmony:
+            bassline = get_melody(line, False, True, frame)
+            temp = []
+            for note in bassline[0]:
+                temp.append(note.note)
+
+            frame.bass.append(temp)
+
+        bass_notes = get_note_names(frame, loop, True)
+
+        new_bass_notes = single_note_objects(frame, bass_notes)
+
+        print()
+
+        for line in new_bass_notes:
+            print(line)
+
+
+        print()
+
+        # displaying harmony output
+        for line in harmony_note_objects(frame):
+            for notes in line:
+                print(notes)
+
         print()
  
         # displaying melody output
-        melody_notes = get_note_names(frame, loop)
+        melody_notes = get_note_names(frame, loop, False)
         melo_note_o = single_note_objects(frame, melody_notes)
         for note in melo_note_o:
             print(note)
         
+        #simple drum pattern
         drums = []
         kicknote = Note('C',1)
         hhnote = Note('Gb',1)
@@ -1363,13 +1466,15 @@ if __name__ == "__main__":
         for i in range(0,2):
             drums.extend(drums)
 
-        chords_program = random.randint(0, 125)
-        melo_program = random.randint(0, 125)
+        #chosing instruments
+        chords_program = random.randint(41, 44)
+        melo_program = random.randint(81, 96)
+        bass_program = random.randint(33, 40)
 
-        print("chords instrument: " + str(chords_program))  
-
+        #creating track
         tracks.append(generate_track(drums, 9, octave=-2))
-        tracks.append(generate_track(melo_note_o, 10, program = 65, velocity = 64))
+        tracks.append(generate_track(melo_note_o, 10, program = melo_program, velocity = 64))
+        tracks.append(generate_track(new_bass_notes, 11, octave= -3, program = bass_program, velocity = 64))
         for i, notes in enumerate(ordered):
             for note in notes:
                 print(note)
@@ -1379,6 +1484,9 @@ if __name__ == "__main__":
             else:
                 tracks.append(generate_track(notes, i, octave = -1, program = chords_program, velocity = 45))            
 
+        melody_notes = get_note_names(frame, loop, False)
+
+        #combining and playing music
         print("combining")
         melody_midi = combine_tracks(tracks)
         pygame.init()
@@ -1393,11 +1501,12 @@ if __name__ == "__main__":
 
         again = input('save midi? (y/n) ')
         print()
+        
         if again == 'y':
             filename = input('what name you want to give to this dope ass beat: \n')
             os.rename("melo.mid", filename)
 
         again = input('again? (y/n) ')
-        print()
+
         if again == 'n':
             a = False
