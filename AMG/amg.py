@@ -135,10 +135,24 @@ class Frame:
         """
         self.melody = []
         self.melody_2 = []
+
         self.harmony = []
         self.harmony_2 = []
+
         self.bass = []
         self.bass_2 = []
+
+        self.kicks = []
+        self.kicks_2 = []
+
+        self.snares = []
+        self.snares_2 = []
+
+        self.closed_hats = []
+        self.closed_hats_2 = []
+
+        self.open_hats = []
+        self.open_hats_2 = []
 
 
 class Chord:
@@ -231,6 +245,7 @@ class Note:
 
         self.value = value
         self.length = length
+
     def __str__(self):
         return "note: %s, duration: %i" % (self.value, self.length)
 
@@ -851,6 +866,9 @@ def passing_chords(curr_line, curr_frame, curr_loop):
                                 get_voicing(relative_ii, curr_loop, curr_line[0][3]))
 
 
+
+
+
 # Chord(name, quality, interval)
 
 I = Chord('Imaj', 'major', 0)
@@ -1303,6 +1321,104 @@ def single_note_objects(curr_frame, curr_melody):
     return curr_frame.melody_2
 
 
+def write_kicks(curr_frame):
+    """Writes the kicks for a standard measure in Frame object 'curr_frame'
+
+    @type curr_frame: Frame
+    @rtype: None
+    """
+    kicks = [10, 20, 30, 40, 50, 60, 70, 80]  # dummy values
+    for count, kick in enumerate(kicks):
+        if count == 0 or count == 4:
+            kicks[count] = 1
+        elif count != 2 and count != 6 and random.randint(0, 4) < 2:
+            kicks[count] = 1
+
+    curr_frame.kicks = kicks
+
+    kick_objects = []
+    count = 1
+    for kick in reversed(kicks):
+        if kick == 1:
+            kick_objects.insert(0, Note('kick', count))
+            count = 1
+        else:  # kick == 0
+            count += 1
+
+    curr_frame.kicks_2 = kick_objects
+
+
+def write_snares(curr_frame):
+    """Writes the snares for a standard measure in Frame object 'curr_frame'
+
+    @type curr_frame: Frame
+    @rtype: None
+    """
+    curr_frame.snares = [10, 20, 1, 40, 50, 60, 1, 80]
+    curr_frame.snares_2 = [Note('rest', 2), Note('snare', 4), Note('snare', 2)]
+
+
+def write_closed_hats(curr_frame):
+    """Writes the closed hats for a standard measure in Frame object 'curr_frame'
+
+    @type curr_frame: Frame
+    @rtype: None
+    """
+    hats = [10, 20, 30, 40, 50, 60, 70, 80]  # dummy values
+
+    if random.randint(0, 1) == 0:
+        for i in range(0, 8, 2):
+            hats[i] = 1
+    else:
+        for i in range(1, 9, 2):
+            hats[i] = 1
+
+    if random.randint(0, 2) == 0:
+        hats = [1, 1, 1, 1, 1, 1, 1, 1]
+
+    curr_frame.closed_hats = hats
+
+    hat_objects = []
+    count = 1
+    for hat in reversed(hats):
+        if hat == 1:
+            hat_objects.insert(0, Note('closed_hat', count))
+            count = 1
+        else:  # hat == [multiple of 10]
+            if hats.index(hat) == 0:
+                hat_objects.insert(0, Note('rest', count))
+            count += 1
+
+    curr_frame.closed_hats_2 = hat_objects
+
+
+def write_open_hats(curr_frame):
+    """Writes the open hats for a standard measure in Frame object 'curr_frame'
+
+    @type curr_frame: Frame
+    @rtype: None
+    """
+    hats = [10, 20, 30, 40, 50, 60, 70, 80]  # dummy values
+
+    if random.randint(0, 4) < 2:
+        hats[random.choice([0, 3, 4, 7])] = 1
+
+    curr_frame.open_hats = hats
+
+    hat_objects = []
+    count = 1
+    for hat in reversed(hats):
+        if hat == 1:
+            hat_objects.insert(0, Note('open_hat', count))
+            count = 1
+        else:  # hat == [multiple of 10]
+            if hats.index(hat) == 0:
+                hat_objects.insert(0, Note('rest', count))
+            count += 1
+
+    curr_frame.open_hats_2 = hat_objects
+
+
 if __name__ == "__main__":
 
     a = True
@@ -1362,6 +1478,11 @@ if __name__ == "__main__":
         loop = Loop(measures_input, tension_input, depth_input)
         frame = Frame()
 
+        write_kicks(frame)
+        write_snares(frame)
+        write_closed_hats(frame)
+        write_open_hats(frame)
+
         previous = None
         previous_voice = None
 
@@ -1390,7 +1511,7 @@ if __name__ == "__main__":
             melody = get_melody(line, new_rhythm, False, frame)
             prev_rhythm = melody[1]
             temp = []
-            for note in melody[0]: 
+            for note in melody[0]:
                 temp.append(note.note)
 
             frame.melody.append(temp)
@@ -1407,7 +1528,7 @@ if __name__ == "__main__":
         #         print()
 
         # harmony_notes = harmony_note_objects(frame)
-        # for harmony_notes = 
+        # for harmony_notes =
 
         flattened = [val for line in harmony_note_objects(frame) for val in line]
         for note in flattened:
@@ -1450,13 +1571,37 @@ if __name__ == "__main__":
                 print(notes)
 
         print()
- 
+
         # displaying melody output
         melody_notes = get_note_names(frame, loop, False)
         melo_note_o = single_note_objects(frame, melody_notes)
         for note in melo_note_o:
             print(note)
-        
+
+        # displaying percussion output
+        print(frame.kicks)
+        for obj in frame.kicks_2:
+            print(obj, obj.value, obj.length)
+
+        print()
+
+        print(frame.snares)
+        for obj in frame.snares_2:
+            print(obj, obj.value, obj.length)
+
+        print()
+
+        print(frame.closed_hats)
+        for obj in frame.closed_hats_2:
+            print(obj, obj.value, obj.length)
+
+        print()
+
+        print(frame.open_hats)
+        for obj in frame.open_hats_2:
+            print(obj, obj.value, obj.length)
+
+
         #simple drum pattern
         drums = []
         kicknote = Note('C',1)
@@ -1482,7 +1627,7 @@ if __name__ == "__main__":
             if i == 0:
                 tracks.append(generate_track(notes, i, octave = 0, program = chords_program, velocity = 45))
             else:
-                tracks.append(generate_track(notes, i, octave = -1, program = chords_program, velocity = 45))            
+                tracks.append(generate_track(notes, i, octave = -1, program = chords_program, velocity = 45))
 
         melody_notes = get_note_names(frame, loop, False)
 
@@ -1501,7 +1646,7 @@ if __name__ == "__main__":
 
         again = input('save midi? (y/n) ')
         print()
-        
+
         if again == 'y':
             filename = input('what name you want to give to this dope ass beat: \n')
             os.rename("melo.mid", filename)
