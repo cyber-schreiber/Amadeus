@@ -1365,8 +1365,11 @@ if __name__ == "__main__":
 
         chords_program = random.randint(0, 125)
         melo_program = random.randint(0, 125)
+
+        print("chords instrument: " + str(chords_program))  
+
         tracks.append(generate_track(drums, 9, octave=-2))
-        tracks.append(generate_track(melo_note_o, 10, program = melo_program))
+        tracks.append(generate_track(melo_note_o, 10, program = 65, velocity = 64))
         for i, notes in enumerate(ordered):
             for note in notes:
                 print(note)

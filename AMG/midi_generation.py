@@ -28,9 +28,9 @@ def find_closest(past, next):
 				next -= 12
 			else: break
 	while(True):
-		if next < 57:
+		if next < 60: #middle C two octaves
 			next += 12
-		elif next > 80:
+		elif next > 84:
 			next -= 12
 		else:
 			return next
