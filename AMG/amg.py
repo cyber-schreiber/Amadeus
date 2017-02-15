@@ -954,9 +954,9 @@ class Spot:
     @type value: str
         either A, S, or R, or None
     @type index: int
-        0 <= index <= 15
+        0 <= index <= 7
     @type note: int | None
-        int that represents interval above chord
+        int that represents interval above chord's root
     """
 
     def __init__(self, index):
@@ -971,13 +971,14 @@ class Spot:
         self.index = index
 
 
-def get_melody(harmony, new, bass):
+def get_melody(harmony, new, bass, curr_frame):
     """Creates and returns the melody for one measure of the loop
 
     @type harmony: list[tuple]
     @type new: bool
     @type bass: bool
         True if returning bassline, False if returning melody
+    @type curr_frame: Frame
     @rtype: list[Spot], list[Spot]
         first list is the notes, second is the rhythm (for repetition/consistency purposes)
     """
@@ -991,7 +992,7 @@ def get_melody(harmony, new, bass):
     if bass:
         rhythm = assign_rhythm(assign_rests(bass), bass, harmony)
 
-    return_melody = get_notes(rhythm, harmony, bass, harmony)
+    return_melody = get_notes(rhythm, harmony, bass, harmony, curr_frame)
 
     return return_melody, rhythm
 
@@ -1066,7 +1067,7 @@ def assign_rhythm(spots, bass, harmony):
     return spots
 
 
-def get_notes(spots, chords, bass, harmony):
+def get_notes(spots, chords, bass, harmony, curr_frame):
     """Determines notes for each spot in spots
 
     @type spots: list[Spot]
@@ -1074,6 +1075,7 @@ def get_notes(spots, chords, bass, harmony):
     @type bass: bool
         True if returning bassline, False if returning melody
     @type harmony: list[tuple]
+    @type curr_frame: Frame
     @rtype: list[Spot]
     """
 
@@ -1104,7 +1106,7 @@ def get_notes(spots, chords, bass, harmony):
             scale_notes['guide'] = [3, 10]
             scale_notes['shell'] = [0, 7]
             scale_notes['color'] = [2, 5, 9]
-            if full_chords[spots.index(spot)].name in ['II-', 'relII-']:
+            if full_chords[spots.index(spot)].name in ['II-', 'relII-', 'V-', 'I-']:
                 scale_notes['color'].remove(9)
             if full_chords[spots.index(spot)].name == 'III-':
                 scale_notes['color'].remove(2)
@@ -1122,41 +1124,42 @@ def get_notes(spots, chords, bass, harmony):
                 scale_notes['color'] = [1, 3, 8]
 
         if spot.value == 'A':
+            options = scale_notes['guide'] + scale_notes['shell'] + scale_notes['color']
+
             if spot.index % 4 == 0:
-                choices.extend(['guide', 'guide', 'guide'])
+                for _ in range(3):
+                    options.extend(scale_notes['guide'])
             elif spot.index % 2 == 0:
-                choices.extend(['shell', 'shell', 'shell'])
+                for _ in range(3):
+                    options.extend(scale_notes['shell'])
             else:
-                choices.extend(['color', 'color', 'color'])
+                for _ in range(3):
+                    options.extend(scale_notes['color'])
 
-            if not bass:
-                options = scale_notes[random.choice(choices)]
+            if bass and len(harmony[spot.index]) > 0:
+                spot.note = 0
             else:
-                options = scale_notes[random.choice(['shell', 'shell', 'shell', 'color', 'guide'])]
-
-            if spots.index(spot) == 0 or bass and len(harmony[spot.index]) > 0:
-                if not bass:
-                    spot.note = random.choice(options)
-                else:
-                    spot.note = 0
-            else:
-                delta = 13
-                final = None
                 prev = spots[spots.index(spot) - 1].note
-                count = 2
+                count = 1
+                onward = True
                 while prev is None:
                     prev = spots[spots.index(spot) - count].note
                     count += 1
                     if count > 4:
                         spot.note = random.choice(options)
+                        onward = False
 
-                for option in options:
-                    if abs(option - prev) < delta:
-                        delta = abs(option - prev)
-                        final = option
+                if onward:
+                    curr_chord_scale = scale_notes['guide'] + scale_notes['shell'] + scale_notes['color']
 
-                options.extend([final, final, final, final])
-                spot.note = random.choice(options)
+                    for chord_note in curr_chord_scale:
+                        delta = abs(prev - chord_note)
+                        if delta > 6:
+                            delta = 12 - delta
+                        for _ in range(4-delta):
+                            options.append(chord_note)
+
+                    spot.note = random.choice(options)
 
         elif spot.value == 'S':
             spot.note = spots[spots.index(spot)-1].note
@@ -1374,7 +1377,7 @@ if __name__ == "__main__":
             else:
                 new_rhythm = False
 
-            melody = get_melody(line, new_rhythm, False)
+            melody = get_melody(line, new_rhythm, False, frame)
             prev_rhythm = melody[1]
             temp = []
             for note in melody[0]:
@@ -1384,7 +1387,7 @@ if __name__ == "__main__":
 
         # adding a bassline
         for line in frame.harmony:
-            bassline = get_melody(line, False, True)
+            bassline = get_melody(line, False, True, frame)
             temp = []
             for note in bassline[0]:
                 temp.append(note.note)
@@ -1419,18 +1422,18 @@ if __name__ == "__main__":
 
         print()
 
-        # for line in frame.harmony:
-        #     print(line)
-        #
-        # print()
-        #
-        # for melody_note in frame.melody:
-        #     print(melody_note)
-        #
-        # print()
-        #
-        # for melody_note in melody_notes:
-        #     print(melody_note)
+        for line in frame.harmony:
+            print(line)
+
+        print()
+
+        for melody_note in frame.melody:
+            print(melody_note)
+
+        print()
+
+        for melody_note in melody_notes:
+            print(melody_note)
 
         again = input('again? (y/n) ')
         print()
